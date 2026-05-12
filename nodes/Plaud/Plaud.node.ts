@@ -74,6 +74,7 @@ export class Plaud implements INodeType {
           { name: 'Account', value: 'account' },
           { name: 'Upload', value: 'upload' },
           { name: 'Tag', value: 'tag' },
+          { name: 'Device', value: 'device' },
         ],
       },
 
@@ -88,6 +89,7 @@ export class Plaud implements INodeType {
         options: [
           { name: 'Get Many', value: 'getAll', action: 'List recordings', description: 'List all recordings in the account' },
           { name: 'Get', value: 'get', action: 'Get a recording', description: 'Get the metadata + content links for one recording' },
+          { name: 'Update Filename', value: 'updateFilename', action: 'Rename a recording' },
           { name: 'Trash (Soft Delete)', value: 'trash', action: 'Move recording to trash' },
           { name: 'Delete (Hard)', value: 'delete', action: 'Permanently delete a recording' },
           { name: 'Get Download URL', value: 'downloadUrl', action: 'Get a presigned audio download URL' },
@@ -101,9 +103,18 @@ export class Plaud implements INodeType {
         default: '',
         required: true,
         displayOptions: {
-          show: { resource: ['recording'], operation: ['get', 'trash', 'delete', 'downloadUrl', 'downloadAudio'] },
+          show: { resource: ['recording'], operation: ['get', 'updateFilename', 'trash', 'delete', 'downloadUrl', 'downloadAudio'] },
         },
         description: 'The 32-char hex `id` from the recordings list',
+      },
+      {
+        displayName: 'New Filename',
+        name: 'newFilename',
+        type: 'string',
+        default: '',
+        required: true,
+        displayOptions: { show: { resource: ['recording'], operation: ['updateFilename'] } },
+        description: 'New display name for the recording (without extension)',
       },
       {
         displayName: 'Include Trashed',
@@ -207,6 +218,19 @@ export class Plaud implements INodeType {
           { name: 'Get Many', value: 'getAll', action: 'List file tags' },
         ],
       },
+
+      // ─── Device operations ────────────────────────────────────────────────
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        default: 'getAll',
+        displayOptions: { show: { resource: ['device'] } },
+        options: [
+          { name: 'Get Many', value: 'getAll', action: 'List devices', description: 'List all Plaud devices linked to the account' },
+        ],
+      },
     ],
   };
 
@@ -231,6 +255,8 @@ export class Plaud implements INodeType {
           out.push(await runUpload.call(this, i, items[i]!));
         } else if (resource === 'tag') {
           out.push(await runTag.call(this, i));
+        } else if (resource === 'device') {
+          out.push(...(await runDevice.call(this, i)));
         } else {
           throw new NodeOperationError(this.getNode(), `Unknown resource "${resource}"`);
         }
@@ -270,6 +296,17 @@ async function runRecording(
       const id = requireRecordingId(this, i);
       const detail = await plaudRequest<FileDetail>(this, 'GET', `/file/detail/${id}`);
       return [{ json: detail as unknown as IDataObject, pairedItem: i }];
+    }
+    case 'updateFilename': {
+      const id = requireRecordingId(this, i);
+      const newFilename = (this.getNodeParameter('newFilename', i) as string).trim();
+      if (!newFilename) {
+        throw new NodeOperationError(this.getNode(), 'New Filename is required', { itemIndex: i });
+      }
+      const res = await plaudRequest(this, 'PATCH', `/file/${id}`, {
+        body: { filename: newFilename } as IDataObject,
+      });
+      return [{ json: { id, filename: newFilename, response: res as unknown as IDataObject }, pairedItem: i }];
     }
     case 'trash': {
       const id = requireRecordingId(this, i);
@@ -418,6 +455,22 @@ async function runUpload(
 async function runTag(this: IExecuteFunctions, i: number): Promise<INodeExecutionData> {
   const tags = await plaudRequest<IDataObject>(this, 'GET', '/filetag/');
   return { json: tags, pairedItem: i };
+}
+
+async function runDevice(this: IExecuteFunctions, i: number): Promise<INodeExecutionData[]> {
+  const res = await plaudRequest<{ data_devices?: IDataObject[] } | IDataObject[]>(
+    this,
+    'GET',
+    '/device/list',
+  );
+  // Plaud returns `{ data_devices: [...] }` here. The transport helper already unwraps
+  // the outer `data` field for endpoints that have one — this endpoint puts the array
+  // at the top level alongside `status`, so we fish out `data_devices` ourselves.
+  const devices = Array.isArray(res)
+    ? res
+    : ((res as { data_devices?: IDataObject[] }).data_devices ?? []);
+  if (devices.length === 0) return [{ json: { devices: [] }, pairedItem: i }];
+  return devices.map((d) => ({ json: d, pairedItem: i }));
 }
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────

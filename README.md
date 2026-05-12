@@ -12,12 +12,13 @@ Community node for [n8n](https://n8n.io) that integrates with [Plaud](https://ww
 
 | Resource | Operations |
 |---|---|
-| Recording | Get Many, Get, Trash, Delete, Get Download URL, Download Audio (binary) |
+| Recording | Get Many, Get, Update Filename, Trash, Delete, Get Download URL, Download Audio (binary) |
 | Transcript | Get (returns the transcript JSON for a recording) |
 | Summary | Get (returns the AI-generated summary as markdown) |
 | Account | Get Profile |
 | Upload | Upload Audio (multipart presigned-S3 flow) |
 | Tag | Get Many |
+| Device | Get Many (list devices linked to the account) |
 
 ### Plaud Trigger (polling)
 
