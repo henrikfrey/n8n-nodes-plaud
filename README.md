@@ -1,12 +1,31 @@
 # n8n-nodes-plaud-cloud
 
-[![n8n.io - Workflow Automation Tool](https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png)](https://n8n.io)
+This is an n8n community node. It lets you use the [Plaud](https://www.plaud.ai) AI voice recorder cloud in your n8n workflows.
 
-Community node for [n8n](https://n8n.io) that integrates with [Plaud](https://www.plaud.ai) — the AI voice recorder cloud.
+Plaud sells pocketable AI voice recorders that automatically sync recordings to a cloud where they are transcribed and summarized. This node exposes that cloud as a set of n8n operations: list recordings, fetch transcripts and summaries, upload new audio, manage tags and devices, and react to new content via a polling trigger.
 
-> ⚠️ **Unofficial / undocumented API.** Plaud does not publish an API. This node was built by reverse-engineering the network traffic of `web.plaud.ai`. Endpoints, payloads, and the auth flow may change without notice. Use at your own risk and review Plaud's Terms of Service before deploying. Do not rely on this for mission-critical workflows.
+[n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
-## What you get
+[Installation](#installation)  
+[Operations](#operations)  
+[Credentials](#credentials)  
+[Compatibility](#compatibility)  
+[Usage](#usage)  
+[Resources](#resources)
+
+> ⚠️ **Unofficial / undocumented API.** Plaud does not publish an API. This node was built by reverse-engineering the network traffic of `web.plaud.ai`. Endpoints, payloads, and the auth flow may change without notice. Use at your own risk and review Plaud's Terms of Service before deploying.
+
+## Installation
+
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation. The package name is `n8n-nodes-plaud-cloud`.
+
+For self-hosted iterative development against a remote n8n container, this repo includes [`scripts/deploy.sh`](scripts/deploy.sh):
+
+```bash
+PLAUD_VPS=root@your-vps-ip ./scripts/deploy.sh
+```
+
+## Operations
 
 ### Plaud (action node)
 
@@ -24,96 +43,79 @@ Community node for [n8n](https://n8n.io) that integrates with [Plaud](https://ww
 
 | Event | What it fires on |
 |---|---|
-| New Recording | A recording with a `version_ms` higher than the cursor (i.e. anything created or updated since last poll) |
-| New Transcript Available | A recording that has just transitioned from "no transcript" to `is_trans: true` |
+| New Recording | A recording with a `version_ms` higher than the cursor (anything created or updated since last poll) |
+| New Transcript Available | A recording that has just transitioned from `is_trans: false` to `is_trans: true` |
 
-State (cursor + seen-ids) is kept in `workflowStaticData('node')`. The very first poll only records the cursor — it does **not** emit historical recordings, so installing the trigger doesn't flood you.
+The first poll silently establishes a cursor — installing the trigger does not flood you with historical recordings. State (cursor + seen-ids) is persisted in `workflowStaticData('node')`.
 
 ## Credentials
 
-Plaud has no API key endpoint, and the web login encrypts the password client-side with a public key. Reproducing that from a generic HTTP client requires reverse-engineering obfuscated JS.
+Plaud has no API-key endpoint, and the web login encrypts the password client-side with a public key. Reproducing that from a generic HTTP client requires reverse-engineering obfuscated JS, so this node uses a different mechanism: a long-lived bearer JWT extracted from a logged-in browser session.
 
-**Workaround**: paste the bearer JWT from a logged-in browser session.
+Prerequisites:
+- A Plaud account with at least one recording in the library.
+- Access to a browser with DevTools (any modern desktop browser).
 
-1. Log in to https://web.plaud.ai
-2. Open DevTools → **Network** tab
-3. Click any request to `api-*.plaud.ai` (e.g. the call to `/user/me`)
-4. In **Headers**, find the `authorization` request header
-5. Copy the value **without** the leading `bearer ` prefix
-6. Paste into the **Access Token (JWT)** field of the credential — that's it
+Steps to obtain the credential value:
 
-The regional API host is auto-detected from the token's `region` claim, so there's
-no second field to configure. The token typically lasts ~10 months before you need
-to re-paste.
+1. Log in to [web.plaud.ai](https://web.plaud.ai).
+2. Open DevTools → **Network** tab.
+3. Click any request to `api-*.plaud.ai` (e.g. the request to `/user/me`).
+4. Find the `authorization` request header.
+5. Copy its value **without** the leading `bearer ` prefix.
+6. In n8n, create a new **Plaud API** credential and paste the value into **Access Token (JWT)**.
 
-## Installation
+The regional API host is detected automatically from the token's `region` claim, so there is no second field to configure. The token typically lasts approximately ten months.
 
-### Self-hosted n8n via Docker
+## Compatibility
 
-```bash
-# Inside the n8n container, mount or copy the built package into ~/.n8n/custom/
-docker exec -it <n8n-container> sh -c '
-  mkdir -p /home/node/.n8n/custom &&
-  cd /home/node/.n8n/custom &&
-  npm init -y >/dev/null &&
-  npm install n8n-nodes-plaud
-'
-docker restart <n8n-container>
+- Tested against n8n 1.74.0 and later.
+- Requires Node.js 18 or later in the n8n runtime.
+- Known regions auto-mapped: `aws:eu-central-1`, `aws:eu-west-1`, `aws:us-east-1`, `aws:us-east-2`, `aws:us-west-1`, `aws:us-west-2`, `aws:ap-southeast-1`, `aws:ap-southeast-2`, `aws:ap-northeast-1`, `aws:ap-south-1`. Other regions fall back to `api.plaud.ai` (Plaud's discovery host); please open an issue with your `region` claim if you hit this fallback so the mapping can be extended.
+
+## Usage
+
+### Auto-transcribe-and-post
+
+```
+Plaud Trigger (Event: New Transcript Available)
+  ↓
+Plaud (Resource: Transcript, Operation: Get, Recording ID: ={{ $json.id }})
+  ↓
+Slack / Email / Notion ... (consume $json.transcript)
 ```
 
-Or add it to your Compose `volumes:` so the package persists across restarts.
+### Archive recordings to S3
 
-### Umbrel (n8n.frey.host style)
-
-```bash
-ssh umbrel@your-umbrel.local
-docker exec -it n8n_n8n_1 sh -c '
-  mkdir -p /home/node/.n8n/custom &&
-  cd /home/node/.n8n/custom &&
-  npm init -y >/dev/null &&
-  npm install n8n-nodes-plaud
-'
-docker restart n8n_n8n_1
+```
+Plaud Trigger (Event: New Recording)
+  ↓
+Plaud (Resource: Recording, Operation: Download Audio, Recording ID: ={{ $json.id }})
+  ↓
+AWS S3 (Upload Binary Data)
 ```
 
-### Remote Docker host (deploy script)
+### Upload an external recording into Plaud
 
-For deploying to a self-hosted n8n on a VPS (Hetzner, DigitalOcean, etc.) without burning npm versions while iterating:
-
-```bash
-PLAUD_VPS=root@your-vps-ip ./scripts/deploy.sh
-# or, if your container is named something other than n8n*:
-PLAUD_VPS=root@your-vps-ip PLAUD_CONTAINER=n8n_app_1 ./scripts/deploy.sh
+```
+HTTP Request (fetch some .ogg)
+  ↓
+Plaud (Resource: Upload, Operation: Upload Audio, Filename: "Meeting 2026-01-15")
 ```
 
-The script builds, packs, `scp`s the tarball, installs it inside the n8n container, and restarts. SSH auth comes from your local agent (1Password / ssh-agent / etc.) — no keys touch the script.
+### Known limitations
 
-### Local development (`npm link`)
+- Audio download URLs expire after 1 hour. Fetch immediately if you need the binary.
+- Summary content is gzipped Markdown server-side; the node decompresses transparently.
+- Upload uses the multipart chunk split returned by Plaud's `/file/get_upload_presigned_url` — Plaud decides how many parts. Voice-memo-sized files work fine; very large uploads (>1 GB) are untested.
+- Plaud has no published rate limit. Polling at one-minute intervals is safe; sub-minute polling is untested.
 
-```bash
-cd n8n-nodes-plaud
-npm install
-npm run build
-npm link
+## Resources
 
-# In your n8n custom-extensions directory:
-mkdir -p ~/.n8n/custom
-cd ~/.n8n/custom
-npm init -y
-npm link n8n-nodes-plaud
-
-# Restart n8n (Ctrl+C, then n8n start)
-```
-
-After install + restart, "Plaud" and "Plaud Trigger" appear in the node panel.
-
-## Caveats
-
-- **Audio download** uses a presigned S3 URL with a 1-hour expiry — fetch it immediately if you need the binary.
-- **Transcript / summary** require two HTTP calls (Plaud `/file/detail/{id}` → presigned S3). The summary is gzipped markdown; the node decompresses it for you.
-- **Upload**: Plaud's preferred audio format is OGG. Other formats (m4a, mp3, wav, opus) appear to work via the `file_type` field but aren't all tested. The default chunk count is what Plaud's `/file/get_upload_presigned_url` returns; we trust their split.
-- **Polling cadence**: Plaud has no published rate limit. Login responses imply ~10 logins/hour. Polling once a minute is safe; sub-minute polling has not been tested.
+* [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
+* [Plaud website](https://www.plaud.ai)
+* [Reverse-engineered API notes](https://github.com/henrikfrey/n8n-nodes-plaud) (this repository)
 
 ## License
 
-MIT
+[MIT](LICENSE)

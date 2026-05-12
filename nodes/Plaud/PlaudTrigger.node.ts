@@ -41,7 +41,7 @@ export class PlaudTrigger implements INodeType {
     defaults: { name: 'Plaud Trigger' },
     polling: true,
     inputs: [],
-    outputs: ['main' as NodeConnectionType],
+    outputs: ['main'],
     credentials: [{ name: 'plaudApi', required: true }],
     properties: [
       {

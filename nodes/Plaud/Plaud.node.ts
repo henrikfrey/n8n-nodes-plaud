@@ -57,8 +57,8 @@ export class Plaud implements INodeType {
     subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
     description: 'Read recordings, transcripts and summaries from Plaud (plaud.ai)',
     defaults: { name: 'Plaud' },
-    inputs: ['main' as NodeConnectionType],
-    outputs: ['main' as NodeConnectionType],
+    inputs: ['main'],
+    outputs: ['main'],
     credentials: [{ name: 'plaudApi', required: true }],
     properties: [
       {
@@ -68,13 +68,13 @@ export class Plaud implements INodeType {
         noDataExpression: true,
         default: 'recording',
         options: [
-          { name: 'Recording', value: 'recording' },
-          { name: 'Transcript', value: 'transcript' },
-          { name: 'Summary', value: 'summary' },
           { name: 'Account', value: 'account' },
-          { name: 'Upload', value: 'upload' },
-          { name: 'Tag', value: 'tag' },
           { name: 'Device', value: 'device' },
+          { name: 'Recording', value: 'recording' },
+          { name: 'Summary', value: 'summary' },
+          { name: 'Tag', value: 'tag' },
+          { name: 'Transcript', value: 'transcript' },
+          { name: 'Upload', value: 'upload' },
         ],
       },
 
@@ -87,13 +87,13 @@ export class Plaud implements INodeType {
         default: 'getAll',
         displayOptions: { show: { resource: ['recording'] } },
         options: [
-          { name: 'Get Many', value: 'getAll', action: 'List recordings', description: 'List all recordings in the account' },
-          { name: 'Get', value: 'get', action: 'Get a recording', description: 'Get the metadata + content links for one recording' },
-          { name: 'Update Filename', value: 'updateFilename', action: 'Rename a recording' },
-          { name: 'Trash (Soft Delete)', value: 'trash', action: 'Move recording to trash' },
           { name: 'Delete (Hard)', value: 'delete', action: 'Permanently delete a recording' },
-          { name: 'Get Download URL', value: 'downloadUrl', action: 'Get a presigned audio download URL' },
           { name: 'Download Audio', value: 'downloadAudio', action: 'Download the audio as binary data' },
+          { name: 'Get', value: 'get', action: 'Get a recording', description: 'Get the metadata + content links for one recording' },
+          { name: 'Get Download URL', value: 'downloadUrl', action: 'Get a presigned audio download URL' },
+          { name: 'Get Many', value: 'getAll', action: 'List recordings', description: 'List many recordings in the account' },
+          { name: 'Trash (Soft Delete)', value: 'trash', action: 'Move recording to trash' },
+          { name: 'Update Filename', value: 'updateFilename', action: 'Rename a recording' },
         ],
       },
       {
@@ -105,7 +105,7 @@ export class Plaud implements INodeType {
         displayOptions: {
           show: { resource: ['recording'], operation: ['get', 'updateFilename', 'trash', 'delete', 'downloadUrl', 'downloadAudio'] },
         },
-        description: 'The 32-char hex `id` from the recordings list',
+        description: 'The 32-char hex `ID` from the recordings list',
       },
       {
         displayName: 'New Filename',
@@ -176,7 +176,7 @@ export class Plaud implements INodeType {
         default: 'upload',
         displayOptions: { show: { resource: ['upload'] } },
         options: [
-          { name: 'Upload Audio', value: 'upload', action: 'Upload an audio file to Plaud' },
+          { name: 'Upload Audio', value: 'upload', action: 'Upload an audio file to plaud' },
         ],
       },
       {
@@ -228,7 +228,7 @@ export class Plaud implements INodeType {
         default: 'getAll',
         displayOptions: { show: { resource: ['device'] } },
         options: [
-          { name: 'Get Many', value: 'getAll', action: 'List devices', description: 'List all Plaud devices linked to the account' },
+          { name: 'Get Many', value: 'getAll', action: 'List devices', description: 'List many Plaud devices linked to the account' },
         ],
       },
     ],
