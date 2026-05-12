@@ -76,6 +76,18 @@ docker exec -it n8n_n8n_1 sh -c '
 docker restart n8n_n8n_1
 ```
 
+### Remote Docker host (deploy script)
+
+For deploying to a self-hosted n8n on a VPS (Hetzner, DigitalOcean, etc.) without burning npm versions while iterating:
+
+```bash
+PLAUD_VPS=root@your-vps-ip ./scripts/deploy.sh
+# or, if your container is named something other than n8n*:
+PLAUD_VPS=root@your-vps-ip PLAUD_CONTAINER=n8n_app_1 ./scripts/deploy.sh
+```
+
+The script builds, packs, `scp`s the tarball, installs it inside the n8n container, and restarts. SSH auth comes from your local agent (1Password / ssh-agent / etc.) — no keys touch the script.
+
 ### Local development (`npm link`)
 
 ```bash
