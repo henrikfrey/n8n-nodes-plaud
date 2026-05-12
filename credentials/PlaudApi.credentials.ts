@@ -10,14 +10,15 @@ import {
  *
  * Plaud has no public API. The web app encrypts the user's password client-side
  * before login, so reproducing the login flow from a generic HTTP client is not
- * feasible without reverse-engineering the obfuscated JS. Instead, the user
- * pastes a long-lived bearer JWT extracted from a logged-in browser session
- * (typical lifetime: ~10 months).
+ * feasible. Instead, the user pastes a long-lived bearer JWT extracted from a
+ * logged-in browser session (typical lifetime: ~10 months).
  *
- * Two fields:
- *   - accessToken: the JWT
- *   - region:      which regional API host to call (encoded in the JWT's
- *                  `region` claim — user picks the matching dropdown entry)
+ * The regional API host is derived from the JWT's `region` claim — no second
+ * field needed. Plaud's known regions map cleanly:
+ *   aws:eu-central-1   → api-euc1.plaud.ai
+ *   aws:us-east-1      → api-use1.plaud.ai
+ *   aws:ap-southeast-1 → api-apse1.plaud.ai
+ * Unknown regions fall back to api.plaud.ai (the discovery host).
  */
 export class PlaudApi implements ICredentialType {
   name = 'plaudApi';
@@ -36,39 +37,11 @@ export class PlaudApi implements ICredentialType {
         'Bearer JWT extracted from a logged-in browser session of web.plaud.ai. ' +
         'Open DevTools → Network → any request to api-*.plaud.ai → copy the value of ' +
         'the "authorization" request header (drop the leading "bearer " prefix). The ' +
-        'token typically lasts ~10 months before you need to re-paste.',
-    },
-    {
-      displayName: 'Region',
-      name: 'region',
-      type: 'options',
-      default: 'euc1',
-      description:
-        'Plaud routes accounts to a regional API. The JWT encodes the home region in the ' +
-        '`region` claim — pick the matching entry. EU Central (Frankfurt) is the default.',
-      options: [
-        { name: 'EU Central (Frankfurt) — api-euc1.plaud.ai', value: 'euc1' },
-        { name: 'US East (N. Virginia) — api-use1.plaud.ai', value: 'use1' },
-        { name: 'Asia Pacific (Singapore) — api-apse1.plaud.ai', value: 'apse1' },
-        { name: 'Custom host (advanced)', value: 'custom' },
-      ],
-    },
-    {
-      displayName: 'Custom API Host',
-      name: 'customHost',
-      type: 'string',
-      default: '',
-      placeholder: 'api-xxx.plaud.ai',
-      description: 'Used only when Region is "Custom host". Hostname only — no scheme, no path.',
-      displayOptions: { show: { region: ['custom'] } },
+        'token typically lasts ~10 months before you need to re-paste. The regional ' +
+        'API host is detected automatically from the token.',
     },
   ];
 
-  // Sets just the Authorization header + Origin/Referer (which web.plaud.ai sends
-  // on every request and which some endpoints CORS-validate). The rest of the
-  // request-tracing headers (x-device-id, x-pld-user, x-request-id) are computed
-  // in the node's transport helper because they need real JS (sha256, JWT decode)
-  // that n8n's expression sandbox doesn't expose.
   authenticate: IAuthenticateGeneric = {
     type: 'generic',
     properties: {
@@ -80,14 +53,14 @@ export class PlaudApi implements ICredentialType {
     },
   };
 
-  // /user/me is the cheapest authenticated GET. Plaud envelopes successful responses
-  // with `status: 0` — the rule below catches "auth succeeded HTTP-wise but the
-  // token was rejected at the application layer".
+  // The expression below decodes the JWT payload, reads the `region` claim, and
+  // maps it to a Plaud regional host. Falls back to api.plaud.ai if anything
+  // throws (malformed token, unknown region) — the discovery host will then
+  // return status:-302 with the correct URL, surfaced via the rule below.
   test: ICredentialTestRequest = {
     request: {
       method: 'GET',
-      baseURL:
-        '={{ $credentials.region === "custom" ? "https://" + $credentials.customHost : "https://api-" + $credentials.region + ".plaud.ai" }}',
+      baseURL: `={{ (() => { try { const p = JSON.parse(Buffer.from($credentials.accessToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'), 'base64').toString('utf8')); const map = {'aws:eu-central-1':'api-euc1','aws:eu-west-1':'api-euw1','aws:us-east-1':'api-use1','aws:us-east-2':'api-use2','aws:us-west-1':'api-usw1','aws:us-west-2':'api-usw2','aws:ap-southeast-1':'api-apse1','aws:ap-southeast-2':'api-apse2','aws:ap-northeast-1':'api-apne1','aws:ap-south-1':'api-aps1'}; return 'https://' + (map[p.region] || 'api') + '.plaud.ai'; } catch (_e) { return 'https://api.plaud.ai'; } })() }}`,
       url: '/user/me',
     },
     rules: [
@@ -97,7 +70,7 @@ export class PlaudApi implements ICredentialType {
           key: 'status',
           value: 0,
           message:
-            'Plaud rejected the token (status != 0). The JWT may be expired, revoked, or the Region setting may not match the token.',
+            'Plaud rejected the token. The JWT may be expired, revoked, or come from a region this node does not know. Verify the token by logging in fresh at web.plaud.ai and copying a new Authorization header.',
         },
       },
     ],

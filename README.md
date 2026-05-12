@@ -1,4 +1,4 @@
-# n8n-nodes-plaud
+# n8n-nodes-plaud-cloud
 
 [![n8n.io - Workflow Automation Tool](https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png)](https://n8n.io)
 
@@ -40,10 +40,11 @@ Plaud has no API key endpoint, and the web login encrypts the password client-si
 3. Click any request to `api-*.plaud.ai` (e.g. the call to `/user/me`)
 4. In **Headers**, find the `authorization` request header
 5. Copy the value **without** the leading `bearer ` prefix
-6. Paste into the **Access Token (JWT)** field of the credential
-7. Pick the matching **Region** (the JWT's `region` claim tells you: `aws:eu-central-1` → EU Central, `aws:us-east-1` → US East, etc.)
+6. Paste into the **Access Token (JWT)** field of the credential — that's it
 
-The token typically lasts ~10 months before you need to re-paste.
+The regional API host is auto-detected from the token's `region` claim, so there's
+no second field to configure. The token typically lasts ~10 months before you need
+to re-paste.
 
 ## Installation
 

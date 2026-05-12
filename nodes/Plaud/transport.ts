@@ -26,8 +26,6 @@ export type PlaudExecuteContext = IExecuteFunctions | IPollFunctions | ILoadOpti
 
 export interface PlaudCredentials {
   accessToken: string;
-  region: 'euc1' | 'use1' | 'apse1' | 'custom';
-  customHost?: string;
 }
 
 export interface PlaudJwtClaims {
@@ -37,20 +35,32 @@ export interface PlaudJwtClaims {
   region?: string;
 }
 
+/**
+ * Map AWS region IDs in the JWT `region` claim to Plaud regional API hosts.
+ * Unknown regions fall back to api.plaud.ai (Plaud's discovery host) which
+ * responds with `status: -302` and the correct regional URL — the transport
+ * layer will surface that as a clear NodeApiError so the user can file an
+ * issue with their region for us to add here.
+ */
 const REGION_HOSTS: Record<string, string> = {
-  euc1: 'api-euc1.plaud.ai',
-  use1: 'api-use1.plaud.ai',
-  apse1: 'api-apse1.plaud.ai',
+  'aws:eu-central-1': 'api-euc1.plaud.ai',
+  'aws:eu-west-1': 'api-euw1.plaud.ai',
+  'aws:us-east-1': 'api-use1.plaud.ai',
+  'aws:us-east-2': 'api-use2.plaud.ai',
+  'aws:us-west-1': 'api-usw1.plaud.ai',
+  'aws:us-west-2': 'api-usw2.plaud.ai',
+  'aws:ap-southeast-1': 'api-apse1.plaud.ai',
+  'aws:ap-southeast-2': 'api-apse2.plaud.ai',
+  'aws:ap-northeast-1': 'api-apne1.plaud.ai',
+  'aws:ap-south-1': 'api-aps1.plaud.ai',
 };
 
 export function plaudBaseUrl(creds: PlaudCredentials): string {
-  if (creds.region === 'custom') {
-    if (!creds.customHost) throw new Error('Custom region selected but no Custom API Host configured');
-    return `https://${creds.customHost.replace(/^https?:\/\//, '').replace(/\/$/, '')}`;
-  }
-  const host = REGION_HOSTS[creds.region];
-  if (!host) throw new Error(`Unknown region "${creds.region}"`);
-  return `https://${host}`;
+  const claims = decodeJwt(creds.accessToken);
+  const region = claims?.region;
+  if (region && REGION_HOSTS[region]) return `https://${REGION_HOSTS[region]}`;
+  // Discovery fallback — Plaud will tell us which regional host to use.
+  return 'https://api.plaud.ai';
 }
 
 export function decodeJwt(token: string): PlaudJwtClaims | null {
