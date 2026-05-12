@@ -1,0 +1,54 @@
+{
+  "name": "n8n-nodes-plaud",
+  "version": "0.1.0",
+  "description": "n8n community node for the Plaud (plaud.ai) AI voice recorder cloud — recordings, transcripts, summaries, uploads",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "plaud",
+    "transcription",
+    "voice-recorder"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Henrik Frey"
+  },
+  "homepage": "https://github.com/henrikfrey/n8n-nodes-plaud#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/henrikfrey/n8n-nodes-plaud.git"
+  },
+  "bugs": {
+    "url": "https://github.com/henrikfrey/n8n-nodes-plaud/issues"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier --write nodes credentials",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/PlaudApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Plaud/Plaud.node.js",
+      "dist/nodes/Plaud/PlaudTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "gulp": "^5.0.0",
+    "n8n-workflow": "*",
+    "typescript": "^5.4.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
